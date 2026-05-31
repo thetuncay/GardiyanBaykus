@@ -11,46 +11,60 @@ const log = createLogger("deploy");
 const rest = new REST({ version: "10" }).setToken(env.DISCORD_TOKEN);
 const body = allCommands.map((c) => c.data.toJSON());
 
-async function main() {
-  // --- Mod 1: Sadece dev sunucusuna (hızlı test) ---
-  if (env.COMMAND_REGISTER_GUILD_ONLY && env.DISCORD_DEV_GUILD_ID) {
-    await rest.put(
-      Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, env.DISCORD_DEV_GUILD_ID),
-      { body },
-    );
-    log.info(`${body.length} komut dev sunucusuna yüklendi`, { guildId: env.DISCORD_DEV_GUILD_ID });
-    return;
+function collectGuildIds(mongoIds: string[]): Set<string> {
+  const ids = new Set(mongoIds);
+  if (env.DISCORD_DEV_GUILD_ID) ids.add(env.DISCORD_DEV_GUILD_ID);
+  if (env.SEED_GUILD_IDS) {
+    for (const id of env.SEED_GUILD_IDS.split(",").map((s) => s.trim()).filter(Boolean)) {
+      ids.add(id);
+    }
   }
+  return ids;
+}
 
-  // --- Mod 2: İzinli tüm sunuculara guild-level deploy (anında görünür) ---
-  await connectMongo(env.MONGODB_URI);
-  const allowedDocs = await AllowedGuildModel.find({}).select("guildId").lean();
-  await disconnectMongo();
+async function deployToGuilds(guildIds: Set<string>): Promise<void> {
+  log.info(`${guildIds.size} sunucuya guild-level deploy başlıyor...`);
+  let ok = 0;
+  let fail = 0;
+  for (const guildId of guildIds) {
+    try {
+      await rest.put(
+        Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, guildId),
+        { body },
+      );
+      log.info(`✓ ${body.length} komut yüklendi`, { guildId });
+      ok++;
+    } catch (e) {
+      log.error(`✗ Yüklenemedi`, { guildId, err: String(e) });
+      fail++;
+    }
+  }
+  log.info("Deploy tamamlandı", { ok, fail, total: guildIds.size });
+}
 
-  if (allowedDocs.length === 0) {
-    log.warn("İzinli sunucu bulunamadı — global deploy yapılıyor (1 saate kadar yayılır)");
+async function main() {
+  // Global deploy (~1 saat yayılır, tüm sunucularda görünür)
+  if (!env.COMMAND_REGISTER_GUILD_ONLY) {
     await rest.put(Routes.applicationCommands(env.DISCORD_CLIENT_ID), { body });
     log.info(`${body.length} global slash komut kaydedildi`);
     return;
   }
 
-  log.info(`${allowedDocs.length} izinli sunucuya guild-level deploy başlıyor...`);
-  let ok = 0;
-  let fail = 0;
-  for (const doc of allowedDocs) {
-    try {
-      await rest.put(
-        Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, doc.guildId),
-        { body },
-      );
-      log.info(`✓ ${body.length} komut yüklendi`, { guildId: doc.guildId });
-      ok++;
-    } catch (e) {
-      log.error(`✗ Yüklenemedi`, { guildId: doc.guildId, err: String(e) });
-      fail++;
-    }
+  // Guild-level deploy: izinli sunucular + SEED + DEV (anında görünür)
+  await connectMongo(env.MONGODB_URI);
+  const allowedDocs = await AllowedGuildModel.find({}).select("guildId").lean();
+  await disconnectMongo();
+
+  const guildIds = collectGuildIds(allowedDocs.map((d) => d.guildId));
+
+  if (guildIds.size === 0) {
+    log.warn("Hiç sunucu bulunamadı — global deploy yapılıyor (1 saate kadar yayılır)");
+    await rest.put(Routes.applicationCommands(env.DISCORD_CLIENT_ID), { body });
+    log.info(`${body.length} global slash komut kaydedildi`);
+    return;
   }
-  log.info(`Deploy tamamlandı`, { ok, fail, total: allowedDocs.length });
+
+  await deployToGuilds(guildIds);
 }
 
 main().catch((e) => {
