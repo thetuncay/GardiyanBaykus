@@ -1,0 +1,44 @@
+{
+  "name": "baykusbot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BilgeBaykuş — Türkçe topluluk Discord botu (moderasyon, çekiliş, geçici ses)",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:prod": "node scripts/ensure-dirs.mjs && node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "deploy": "tsx src/commands/deploy.ts",
+    "lint": "eslint src",
+    "pm2:start": "node scripts/ensure-dirs.mjs && pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop bilgebaykus",
+    "pm2:restart": "pm2 restart bilgebaykus",
+    "pm2:logs": "pm2 logs bilgebaykus",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f bot"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "ioredis": "^5.4.1",
+    "mongoose": "^8.8.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.9.0",
+    "@typescript-eslint/eslint-plugin": "^8.14.0",
+    "@typescript-eslint/parser": "^8.14.0",
+    "eslint": "^9.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.14.0"
+  }
+}

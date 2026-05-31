@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+logs/
+
+config.json
+database.json
+ekonomi_database.json
+ticket_database.json
+uyari_database.json

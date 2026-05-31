@@ -1,0 +1,24 @@
+[Unit]
+Description=BilgeBaykuş Discord Bot
+After=network-online.target mongod.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/gardiyanbot
+Environment=NODE_ENV=production
+Environment=TZ=Europe/Istanbul
+EnvironmentFile=-/opt/gardiyanbot/.env
+ExecStartPre=/usr/bin/node /opt/gardiyanbot/scripts/ensure-dirs.mjs
+ExecStart=/usr/bin/node /opt/gardiyanbot/dist/index.js
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
