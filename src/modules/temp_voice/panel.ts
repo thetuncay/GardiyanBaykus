@@ -19,6 +19,18 @@ import { COOLDOWN_TEMP_VOICE_BUTTON_SEC } from "../../config/constants.js";
 import { slidingWindowHit } from "../../services/rateLimiter.js";
 import { tryConsumeCooldown } from "../../services/cooldownService.js";
 import { errorEmbed, infoEmbed, warningEmbed, brandEmbed } from "../../utils/embeds.js";
+import {
+  persistAllowedAdd,
+  persistAllowedRemove,
+  persistBanAdd,
+  persistBanRemove,
+  persistBitrate,
+  persistChannelName,
+  persistEveryonePublic,
+  persistHidden,
+  persistUserLimit,
+} from "./profileService.js";
+import { removeVoiceRoom } from "./roomService.js";
 
 const ownerKey = (channelId: string) => redisKeys.tempVoiceOwner(channelId);
 const lockedKey = (channelId: string) => redisKeys.tempVoiceLocked(channelId);
@@ -188,15 +200,18 @@ async function runLockToggle(
   const redis = getRedis();
   const everyone = channel.guild.roles.everyone;
   const isPublic = await getEveryonePublic(channelId);
+  const owner = await redis.get(ownerKey(channelId));
 
   if (!isPublic) {
     await channel.permissionOverwrites.edit(everyone, { Connect: true });
     await redis.set(publicKey(channelId), "1", "EX", TTL);
+    if (owner) await persistEveryonePublic(channel.guild.id, owner, true);
     return "🦉 **Herkese açık:** Sunucudaki herkes bu odaya bağlanabilir (kanalı listede görebiliyorsa). `owl ekle` ile eklediğin üyelerin izinleri aynen kalır. Tekrar `owl kilit` ile sadece davetlilere dönebilirsin.";
   }
 
   await channel.permissionOverwrites.edit(everyone, { Connect: false });
   await redis.del(publicKey(channelId));
+  if (owner) await persistEveryonePublic(channel.guild.id, owner, false);
   return "🦉 **Sadece davetliler:** Oda yalnızca yuva sahibi ve `owl ekle` ile eklenen üyelere açık; önceden eklenenlerin izinleri silinmez. Herkese açmak için tekrar `owl kilit` yaz.";
 }
 
@@ -226,6 +241,7 @@ async function runHideToggle(
       EmbedLinks: true,
       ReadMessageHistory: true,
     });
+    await persistHidden(guild.id, owner, true);
     return "🦉 Yuva listeden gizlendi (sen ve bot görebilirsiniz).";
   }
   await redis.del(hiddenKey(channelId));
@@ -233,6 +249,7 @@ async function runHideToggle(
     ViewChannel: true,
     Connect: false,
   });
+  await persistHidden(guild.id, owner, false);
   return "🦉 Yuva tekrar görünür.";
 }
 
@@ -242,6 +259,7 @@ export async function closeTempVoiceChannel(channel: VoiceChannel, channelId: st
   }
   await channel.delete("BilgeBaykuş: yuva kapatıldı").catch(() => null);
   await clearTempVoiceRedis(channelId, channel.guild.id);
+  await removeVoiceRoom(channelId);
 }
 
 export async function handleTempVoiceButton(interaction: ButtonInteraction): Promise<boolean> {
@@ -485,6 +503,8 @@ export async function handleTempVoiceModal(interaction: ModalSubmitInteraction):
     const maxBps = interaction.guild.maximumBitrate;
     const bps = Math.min(Math.max(kbps * 1000, 8000), maxBps);
     await channel.setBitrate(bps, "BilgeBaykuş panel");
+    const owner = await getRedis().get(ownerKey(channelId));
+    if (owner) await persistBitrate(interaction.guild.id, owner, bps);
     await interaction.reply({
       embeds: [
         infoEmbed({
@@ -516,6 +536,8 @@ export async function handleTempVoiceModal(interaction: ModalSubmitInteraction):
       return true;
     }
     await channel.setUserLimit(n, "BilgeBaykuş panel");
+    const owner = await getRedis().get(ownerKey(channelId));
+    if (owner) await persistUserLimit(interaction.guild.id, owner, n);
     await interaction.reply({
       embeds: [
         infoEmbed({
@@ -549,6 +571,8 @@ export async function handleTempVoiceModal(interaction: ModalSubmitInteraction):
       return true;
     }
     await channel.setName(name, "BilgeBaykuş panel");
+    const owner = await getRedis().get(ownerKey(channelId));
+    if (owner) await persistChannelName(interaction.guild.id, owner, name);
     await interaction.reply({
       embeds: [
         infoEmbed({
@@ -679,6 +703,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
       return true;
     }
     await channel.setName(name, "owl isim");
+    await persistChannelName(message.guild.id, owner, name);
     await message.reply({
       embeds: [
         infoEmbed({
@@ -707,6 +732,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
       return true;
     }
     await channel.setUserLimit(n, "owl limit");
+    await persistUserLimit(message.guild.id, owner, n);
     await message
       .reply({
         embeds: [
@@ -739,6 +765,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
     const maxBps = message.guild.maximumBitrate;
     const bps = Math.min(Math.max(kbps * 1000, 8000), maxBps);
     await channel.setBitrate(bps, "owl kbps");
+    await persistBitrate(message.guild.id, owner, bps);
     await message.reply({
       embeds: [
         infoEmbed({
@@ -782,6 +809,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
       ViewChannel: true,
       Connect: true,
     });
+    await persistAllowedAdd(message.guild.id, owner, target);
     await message.reply({
       embeds: [
         infoEmbed({
@@ -822,6 +850,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
     await channel.permissionOverwrites.delete(target).catch(() => null);
     const mem = await message.guild.members.fetch(target).catch(() => null);
     if (mem?.voice.channelId === channelId) await mem.voice.disconnect().catch(() => null);
+    await persistAllowedRemove(message.guild.id, owner, target);
     await message.reply({
       embeds: [
         infoEmbed({
@@ -862,6 +891,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
     await channel.permissionOverwrites.edit(target, { Connect: false, ViewChannel: false });
     const mem = await message.guild.members.fetch(target).catch(() => null);
     if (mem?.voice.channelId === channelId) await mem.voice.disconnect().catch(() => null);
+    await persistBanAdd(message.guild.id, owner, target);
     await message.reply({
       embeds: [
         infoEmbed({
@@ -888,6 +918,7 @@ export async function handleOwlTempVoiceCommand(message: Message): Promise<boole
       return true;
     }
     await channel.permissionOverwrites.delete(target).catch(() => null);
+    await persistBanRemove(message.guild.id, owner, target);
     await message.reply({
       embeds: [
         infoEmbed({

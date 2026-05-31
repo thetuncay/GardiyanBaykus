@@ -5,6 +5,10 @@ import { createLogger } from "../services/logger.js";
 import { getAllowedGuildIds, isGuildAllowed, invalidateAllowedGuildCache } from "../services/allowedGuildCache.js";
 import { AllowedGuildModel } from "../database/models/AllowedGuild.js";
 import { loadEnv } from "../config/env.js";
+import {
+  recoverTempVoiceRooms,
+  reconcileOrphanTempChannels,
+} from "../modules/temp_voice/roomService.js";
 
 const log = createLogger("ready");
 
@@ -18,6 +22,14 @@ export function registerReady(client: Client): void {
 
     // İzinsiz sunuculardan çık
     await sweepUnauthorizedGuilds(c);
+
+    // Geçici ses: restart sonrası aktif oda kayıtlarını doğrula
+    await recoverTempVoiceRooms(c).catch((e) =>
+      log.error("Temp voice recovery hatası", { err: String(e) }),
+    );
+    await reconcileOrphanTempChannels(c).catch((e) =>
+      log.error("Temp voice reconcile hatası", { err: String(e) }),
+    );
 
     setInterval(() => {
       void sweepDueGiveaways(c);

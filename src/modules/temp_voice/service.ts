@@ -5,6 +5,12 @@ import { getRedis } from "../../services/redis.js";
 import { redisKeys } from "../../config/redisKeys.js";
 import { createLogger } from "../../services/logger.js";
 import { postTempVoicePanel, clearTempVoiceRedis } from "./panel.js";
+import { ensureVoiceProfile, getVoiceProfile } from "./profileService.js";
+import {
+  applyProfileToChannel,
+  registerVoiceRoom,
+  removeVoiceRoom,
+} from "./roomService.js";
 
 const log = createLogger("tempvc");
 
@@ -61,6 +67,9 @@ async function moveMemberToTempChannel(
 ): Promise<void> {
   const userChKey = redisKeys.tempVoiceUserChannel(guild.id, userId);
   await redis.set(userChKey, channel.id, "EX", 86400);
+  await registerVoiceRoom(guild.id, channel.id, userId).catch((e) =>
+    log.error("registerVoiceRoom failed", { err: String(e) }),
+  );
   const member = await guild.members.fetch(userId);
   if (member.voice.channel) {
     await member.voice.setChannel(channel.id).catch(() => null);
@@ -103,6 +112,7 @@ export async function handleVoiceState(oldS: VoiceState, newS: VoiceState): Prom
         if (fresh && fresh.members.size === 0) {
           await fresh.delete("Temporary voice empty");
           await clearTempVoiceRedis(leftId, guild.id);
+          await removeVoiceRoom(leftId);
         }
       } catch {
         /* ignore */
@@ -128,6 +138,7 @@ async function createTempChannel(
 
   try {
     const categoryId = cfg.tempVoice.categoryId ?? undefined;
+    const profile = await ensureVoiceProfile(guild.id, userId);
 
     const userChKey = redisKeys.tempVoiceUserChannel(guild.id, userId);
     const existingId = await redis.get(userChKey);
@@ -166,13 +177,20 @@ async function createTempChannel(
       await moveMemberToTempChannel(guild, userId, ownedVc, redis);
       return;
     }
+
     const member = await guild.members.fetch(userId);
     const template = cfg.tempVoice.nameTemplate ?? "🦉 {displayName} Yuvası";
-    const name = template
-      .replaceAll("{displayName}", member.displayName)
-      .replaceAll("{username}", member.user.username)
-      .replaceAll("{user}", member.user.username)
-      .slice(0, 90);
+    let name = profile.channelName?.trim();
+    if (!name) {
+      name = template
+        .replaceAll("{displayName}", member.displayName)
+        .replaceAll("{username}", member.user.username)
+        .replaceAll("{user}", member.user.username)
+        .slice(0, 90);
+    } else {
+      name = name.slice(0, 90);
+    }
+
     const channel = await guild.channels.create({
       name,
       type: ChannelType.GuildVoice,
@@ -205,8 +223,14 @@ async function createTempChannel(
         },
       ],
     });
+
     await redis.set(ownerKey(channel.id), userId, "EX", 86400);
     await redis.set(userChKey, channel.id, "EX", 86400);
+
+    const freshProfile = await getVoiceProfile(guild.id, userId);
+    await applyProfileToChannel(channel, guild, userId, freshProfile);
+    await registerVoiceRoom(guild.id, channel.id, userId);
+
     if (member.voice.channel) {
       await member.voice.setChannel(channel).catch(() => null);
     }
