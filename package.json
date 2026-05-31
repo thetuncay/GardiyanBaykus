@@ -18,6 +18,7 @@
     "pm2:stop": "pm2 stop bilgebaykus",
     "pm2:restart": "pm2 restart bilgebaykus",
     "pm2:logs": "pm2 logs bilgebaykus",
+    "guild:allow": "node scripts/add-allowed-guild.mjs",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f bot"
