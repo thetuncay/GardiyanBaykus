@@ -1,24 +1,12 @@
 import type { Client } from "discord.js";
-import { registerMemberLogs } from "./memberLogs.js";
-import { registerMessageLogs } from "./messageLogs.js";
-import { registerModerationLogs } from "./moderationLogs.js";
-import { registerVoiceLogs } from "./voiceLogs.js";
-import { registerRoleLogs } from "./roleLogs.js";
-import { registerChannelLogs } from "./channelLogs.js";
-import { registerServerLogs } from "./serverLogs.js";
-import { registerInviteLogs } from "./inviteLogs.js";
-import { registerEmojiStickerLogs } from "./emojiStickerLogs.js";
-import { registerAdvancedLogs } from "./advancedLogs.js";
+import { registerMessageEvents } from "./messageEvents.js";
+import { registerMemberEvents } from "./memberEvents.js";
+import { registerVoiceEvents } from "./voiceEvents.js";
+import { registerMiscEvents } from "./miscEvents.js";
 
 export function registerLoggingEvents(client: Client): void {
-  registerMemberLogs(client);
-  registerMessageLogs(client);
-  registerModerationLogs(client);
-  registerVoiceLogs(client);
-  registerRoleLogs(client);
-  registerChannelLogs(client);
-  registerServerLogs(client);
-  registerInviteLogs(client);
-  registerEmojiStickerLogs(client);
-  registerAdvancedLogs(client);
+  registerMessageEvents(client);
+  registerMemberEvents(client);
+  registerVoiceEvents(client);
+  registerMiscEvents(client);
 }

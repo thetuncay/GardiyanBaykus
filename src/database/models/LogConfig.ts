@@ -1,5 +1,13 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
 
+const CategoryConfigSchema = new Schema(
+  {
+    enabled: { type: Boolean, default: true },
+    channelId: { type: String, default: null },
+  },
+  { _id: false },
+);
+
 const LogConfigSchema = new Schema(
   {
     guildId: { type: String, required: true, unique: true, index: true },
@@ -10,8 +18,26 @@ const LogConfigSchema = new Schema(
     ignoredRoles: { type: [String], default: [] },
     ignoreBots: { type: Boolean, default: true },
 
-    // Python: LOG_CHANNELS runtime dict -> DB persisted channel IDs
+    disabledCategories: { type: [String], default: [] },
     categoryId: { type: String, default: null },
+
+    categories: {
+      member: { type: CategoryConfigSchema, default: () => ({}) },
+      message: { type: CategoryConfigSchema, default: () => ({}) },
+      moderation: { type: CategoryConfigSchema, default: () => ({}) },
+      voice: { type: CategoryConfigSchema, default: () => ({}) },
+      role: { type: CategoryConfigSchema, default: () => ({}) },
+      channel: { type: CategoryConfigSchema, default: () => ({}) },
+      server: { type: CategoryConfigSchema, default: () => ({}) },
+      invite: { type: CategoryConfigSchema, default: () => ({}) },
+      emojiSticker: { type: CategoryConfigSchema, default: () => ({}) },
+      thread: { type: CategoryConfigSchema, default: () => ({}) },
+      webhook: { type: CategoryConfigSchema, default: () => ({}) },
+      integration: { type: CategoryConfigSchema, default: () => ({}) },
+      automod: { type: CategoryConfigSchema, default: () => ({}) },
+    },
+
+    // Legacy alanlar (geriye dönük uyumluluk)
     channels: {
       messageLogs: { type: String, default: null },
       voiceLogs: { type: String, default: null },

@@ -1,12 +1,12 @@
 import {
-  EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
 import type { SlashCommand } from "../../../commands/types.js";
-import { LogService } from "../services/logService.js";
-import { LOG_CHANNEL_DEFINITIONS } from "../types.js";
+import { ensureLoggingChannelsSetup } from "../core/logChannelManager.js";
+import { LOG_CATEGORIES, LOG_CATEGORY_META } from "../core/logCategories.js";
+import { successEmbed, errorEmbed } from "../../../utils/embeds.js";
 
 export const setupLoggingCommand: SlashCommand = {
   data: new SlashCommandBuilder()
@@ -18,20 +18,33 @@ export const setupLoggingCommand: SlashCommand = {
   execute: async (interaction) => {
     if (!interaction.guild) return;
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const channels = await LogService.ensureSetup(interaction.guild);
+    try {
+      const channels = await ensureLoggingChannelsSetup(interaction.guild);
 
-    const lines = LOG_CHANNEL_DEFINITIONS.map((def) => {
-      const id = channels[def.key];
-      return `- \`${def.name}\`: ${id ? `<#${id}>` : "not available"}`;
-    }).join("\n");
+      const lines = LOG_CATEGORIES.map((key) => {
+        const id = channels[key];
+        return `- \`${LOG_CATEGORY_META[key].defaultChannelName}\`: ${id ? `<#${id}>` : "atanamadı"}`;
+      }).join("\n");
 
-    const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle("Logging setup complete")
-      .setDescription("The logging system is now active with automatic channel routing.")
-      .addFields({ name: "Configured channels", value: lines })
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({
+        embeds: [
+          successEmbed({
+            subsystem: "moderasyon",
+            title: "✅ Logging Kurulumu Tamamlandı",
+            description: `Tüm kategoriler otomatik kanal eşleştirmesiyle etkinleştirildi.\n\n${lines}`,
+          }),
+        ],
+      });
+    } catch (err) {
+      await interaction.editReply({
+        embeds: [
+          errorEmbed({
+            subsystem: "moderasyon",
+            title: "❌ Logging Kurulumu Başarısız",
+            description: `Kurulum sırasında hata oluştu: \`${String(err)}\``,
+          }),
+        ],
+      });
+    }
   },
 };

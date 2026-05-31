@@ -1,9 +1,8 @@
 import { SlashCommandBuilder, ChannelType } from "discord.js";
 import type { SlashCommand } from "../../commands/types.js";
 import { requireAdmin } from "../../utils/permissions.js";
-import { LogConfigModel } from "../../database/models/LogConfig.js";
-import { invalidateLogConfigCache } from "../../services/logConfigCache.js";
 import { successEmbed } from "../../utils/embeds.js";
+import { setCategoryChannel } from "../logging/core/logChannelManager.js";
 
 export const adminCommands: SlashCommand[] = [
   {
@@ -35,20 +34,11 @@ export const adminCommands: SlashCommand[] = [
       const channel = interaction.options.getChannel("kanal");
       const id = channel?.id ?? null;
 
-      const setPath =
-        tur === "moderationLogs"
-          ? ({
-              "channels.moderationLogs": id,
-              "channels.modLogs": id,
-            } as const)
-          : ({ "channels.serverLogs": id } as const);
-
-      await LogConfigModel.updateOne(
-        { guildId: interaction.guild.id },
-        { $set: { guildId: interaction.guild.id, ...setPath } },
-        { upsert: true },
+      await setCategoryChannel(
+        interaction.guild.id,
+        tur === "moderationLogs" ? "moderation" : "server",
+        id,
       );
-      invalidateLogConfigCache(interaction.guild.id);
 
       const label = tur === "moderationLogs" ? "Mod / ceza logu" : "Sunucu / genel log";
       await interaction.reply({

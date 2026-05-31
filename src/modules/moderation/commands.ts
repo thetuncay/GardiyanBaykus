@@ -9,7 +9,7 @@ import { requireModerator } from "../../utils/permissions.js";
 import { M } from "../../utils/messages.js";
 import { parseDurationToMs } from "../../utils/time.js";
 import { createModCase, sendModLog, addWarn, applyProgressiveTimeoutIfNeeded } from "./service.js";
-import { fetchModerationLogChannel } from "../logging/services/modLogChannel.js";
+import { resolveLogChannel } from "../logging/core/logChannelManager.js";
 import { errorEmbed, successEmbed, warningEmbed } from "../../utils/embeds.js";
 
 export const moderationCommands: SlashCommand[] = [
@@ -62,7 +62,7 @@ export const moderationCommands: SlashCommand[] = [
         reason,
         metadata: { days },
       });
-      const logCh = await fetchModerationLogChannel(interaction.guild);
+      const logCh = await resolveLogChannel(interaction.guild, "moderation");
       if (logCh)
         await sendModLog(logCh, {
           caseId,
@@ -134,7 +134,7 @@ export const moderationCommands: SlashCommand[] = [
         moderatorId: mod.id,
         reason,
       });
-      const logCh = await fetchModerationLogChannel(interaction.guild);
+      const logCh = await resolveLogChannel(interaction.guild, "moderation");
       if (logCh)
         await sendModLog(logCh, {
           caseId,
@@ -214,7 +214,7 @@ export const moderationCommands: SlashCommand[] = [
         reason,
         metadata: { ms },
       });
-      const logCh = await fetchModerationLogChannel(interaction.guild);
+      const logCh = await resolveLogChannel(interaction.guild, "moderation");
       if (logCh)
         await sendModLog(logCh, {
           caseId,
@@ -263,7 +263,7 @@ export const moderationCommands: SlashCommand[] = [
         userId: target.id,
         guild: interaction.guild,
       });
-      const logCh = await fetchModerationLogChannel(interaction.guild);
+      const logCh = await resolveLogChannel(interaction.guild, "moderation");
       if (logCh)
         await sendModLog(logCh, {
           caseId,
@@ -338,7 +338,7 @@ export const moderationCommands: SlashCommand[] = [
         reason: `${ch.id}: ${n} mesaj`,
         metadata: { channelId: ch.id, n },
       });
-      const logCh = await fetchModerationLogChannel(interaction.guild);
+      const logCh = await resolveLogChannel(interaction.guild, "moderation");
       if (logCh)
         await sendModLog(logCh, {
           caseId,

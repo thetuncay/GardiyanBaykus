@@ -2,7 +2,7 @@ import type { Message } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 import { getGuildConfig } from "../../services/guildSettingsCache.js";
 import { slidingWindowHit } from "../../services/rateLimiter.js";
-import { fetchModerationLogChannel } from "../logging/services/modLogChannel.js";
+import { resolveLogChannel } from "../logging/core/logChannelManager.js";
 import { createModCase, sendModLog } from "./service.js";
 import type { TextChannel } from "discord.js";
 
@@ -34,7 +34,7 @@ export async function runAutomod(message: Message): Promise<boolean> {
     );
     if (!allowed) {
       await message.delete().catch(() => null);
-      const ch = await fetchModerationLogChannel(message.guild);
+      const ch = await resolveLogChannel(message.guild, "moderation");
       if (ch) {
         if (ch.isTextBased()) {
           const { caseId } = await createModCase({
